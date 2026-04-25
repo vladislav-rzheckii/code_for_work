@@ -530,16 +530,34 @@ textarea {
   flex: 1;
   border: 1px solid var(--border);
   border-radius: 10px;
-  padding: 12px;
+  padding: 0;
   background: rgba(120, 130, 150, 0.08);
   color: var(--text);
   font-family: Consolas, "Courier New", monospace;
   font-size: 13px;
   line-height: 1.45;
+  overflow: auto;
+}
+
+.output-code .cm-editor {
+  height: 100%;
+  border-radius: 10px;
+  font-size: 13px;
+}
+
+.output-code .cm-scroller {
+  font-family: Consolas, "Courier New", monospace;
+  line-height: 1.45;
+  overflow-x: hidden;
+}
+
+.output-code .cm-content {
   white-space: pre-wrap;
   word-break: break-word;
-  overflow: auto;
-  resize: vertical;
+}
+
+.output-code .cm-gutters {
+  border-right: 1px solid var(--border);
 }
 
 .page.dark .topbar {
@@ -582,6 +600,11 @@ textarea {
 .page.dark .output-code,
 .page.dark .link-preview input {
   background-color: #171d29;
+}
+
+.page.dark .output-code .cm-gutters {
+  background: #131927;
+  border-right-color: #3a475f;
 }
 
 .right-pane-header {

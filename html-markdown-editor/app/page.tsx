@@ -10,6 +10,11 @@ import { TableHeader } from "@tiptap/extension-table-header";
 import { TableRow } from "@tiptap/extension-table-row";
 import { TextAlign } from "@tiptap/extension-text-align";
 import { Link } from "@tiptap/extension-link";
+import CodeMirror from "@uiw/react-codemirror";
+import { html as htmlLang } from "@codemirror/lang-html";
+import { markdown as markdownLang } from "@codemirror/lang-markdown";
+import { oneDark } from "@codemirror/theme-one-dark";
+import { EditorView } from "@codemirror/view";
 import { marked } from "marked";
 import TurndownService from "turndown";
 import { gfm } from "turndown-plugin-gfm";
@@ -341,6 +346,10 @@ export default function Home() {
 
   const currentHtml = liveHtml;
   const currentMarkdown = useMemo(() => htmlToMarkdownWithTables(currentHtml, turndown), [currentHtml, turndown]);
+  const rightPaneExtensions = useMemo(
+    () => [outputMode === "html" ? htmlLang() : markdownLang(), EditorView.lineWrapping],
+    [outputMode]
+  );
 
   const showNotification = useCallback((message: string) => {
     setNotification(message);
@@ -693,12 +702,21 @@ export default function Home() {
               <button onClick={() => void applyRightPaneChanges()}>Apply to Visual</button>
             </div>
           </div>
-          <textarea
-            className="output-code"
-            value={rightPaneInput}
-            onChange={(event) => setRightPaneInput(event.target.value)}
-            placeholder={`Paste or edit ${outputMode.toUpperCase()} here...`}
-          />
+          <div className="output-code">
+            <CodeMirror
+              value={rightPaneInput}
+              height="100%"
+              extensions={rightPaneExtensions}
+              theme={theme === "dark" ? oneDark : "light"}
+              basicSetup={{
+                lineNumbers: true,
+                highlightActiveLine: false,
+                foldGutter: false
+              }}
+              onChange={(value) => setRightPaneInput(value)}
+              placeholder={`Paste or edit ${outputMode.toUpperCase()} here...`}
+            />
+          </div>
         </div>
       </section>
       {linkPreview.isOpen ? (
