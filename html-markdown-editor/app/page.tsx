@@ -106,17 +106,10 @@ function cleanExportHtml(input: string): string {
 
   doc.querySelectorAll("table colgroup").forEach((node) => node.remove());
 
-  doc.querySelectorAll<HTMLElement>("table, thead, tbody, tr, th, td").forEach((node) => {
-    node.removeAttribute("style");
-    node.removeAttribute("class");
-    node.removeAttribute("id");
-
-    if (node.getAttribute("colspan") === "1") {
-      node.removeAttribute("colspan");
-    }
-    if (node.getAttribute("rowspan") === "1") {
-      node.removeAttribute("rowspan");
-    }
+  doc.querySelectorAll<HTMLElement>("table, thead, tbody, tfoot, tr, th, td, caption").forEach((node) => {
+    Array.from(node.attributes).forEach((attribute) => {
+      node.removeAttribute(attribute.name);
+    });
   });
 
   doc.querySelectorAll("th > p:only-child, td > p:only-child").forEach((paragraph) => {
@@ -138,6 +131,12 @@ function normalizeHtmlForOutput(input: string): string {
 
   const parser = new DOMParser();
   const doc = parser.parseFromString(input, "text/html");
+  doc.querySelectorAll("table colgroup").forEach((node) => node.remove());
+  doc.querySelectorAll<HTMLElement>("table, thead, tbody, tfoot, tr, th, td, caption").forEach((node) => {
+    Array.from(node.attributes).forEach((attribute) => {
+      node.removeAttribute(attribute.name);
+    });
+  });
   doc.querySelectorAll("a").forEach((anchor) => {
     anchor.removeAttribute("rel");
     anchor.removeAttribute("target");
