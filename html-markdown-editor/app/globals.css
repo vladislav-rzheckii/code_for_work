@@ -21,18 +21,26 @@ body {
 .page {
   min-height: 100vh;
   padding: 16px;
+  background: var(--bg);
   --topbar-sticky-top: 0px;
   --topbar-sticky-height: 66px;
   --panel-header-sticky-top: calc(var(--topbar-sticky-top) + var(--topbar-sticky-height));
 }
 
 .page.dark {
-  --bg: #15181d;
-  --panel: #20242b;
-  --text: #f4f7ff;
-  --border: #3d4450;
-  --button: #2a303a;
-  --button-active: #375381;
+  --bg: #12161d;
+  --panel: #1c2230;
+  --text: #eef4ff;
+  --border: #364155;
+  --button: #273247;
+  --button-active: #3f629a;
+}
+
+.page.dark,
+.page.dark .workspace,
+.page.dark .left-pane,
+.page.dark .right-pane {
+  background: var(--bg);
 }
 
 .topbar {
@@ -58,6 +66,10 @@ h3 {
   margin: 0;
 }
 
+h1 {
+  color: var(--text);
+}
+
 .actions,
 .toolbar {
   display: flex;
@@ -76,6 +88,10 @@ button {
 
 button.active {
   background: var(--button-active);
+}
+
+button:hover {
+  filter: brightness(1.04);
 }
 
 .theme-toggle {
@@ -126,6 +142,7 @@ select {
 .panel-title {
   font-size: 14px;
   font-weight: 600;
+  color: var(--text);
 }
 
 .toolbar.compact {
@@ -441,6 +458,7 @@ select {
   min-height: 58vh;
   outline: none;
   color: var(--text);
+  background: transparent;
 }
 
 .editor * {
@@ -475,10 +493,12 @@ select {
 .editor th {
   border: 1px solid var(--border);
   padding: 6px;
+  background: transparent;
+  color: var(--text);
 }
 
 .editor a {
-  color: #85b7ff;
+  color: #5a9dff;
   cursor: pointer;
 }
 
@@ -520,6 +540,48 @@ textarea {
   word-break: break-word;
   overflow: auto;
   resize: vertical;
+}
+
+.page.dark .topbar {
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.page.dark .editor-panel-header,
+.page.dark .toolbar.compact,
+.page.dark .pane-sticky {
+  background: #1f2736;
+}
+
+.page.dark .output-code {
+  background: #171d29;
+  color: #f1f6ff;
+  border-color: #3a475f;
+}
+
+.page.dark .editor a {
+  color: #8fc1ff;
+}
+
+.page.dark button,
+.page.dark select,
+.page.dark .link-preview input {
+  color: #eef4ff;
+}
+
+.page.dark .left-pane,
+.page.dark .right-pane,
+.page.dark .link-preview {
+  background: #1c2230;
+}
+
+.page.dark .editor {
+  background: #1b2230;
+}
+
+.page.dark textarea,
+.page.dark .output-code,
+.page.dark .link-preview input {
+  background-color: #171d29;
 }
 
 .right-pane-header {

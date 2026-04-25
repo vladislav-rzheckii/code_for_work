@@ -402,8 +402,8 @@ export default function Home() {
 
       if (value.startsWith("h")) {
         const level = Number(value.slice(1));
-        if ([1, 2, 3].includes(level)) {
-          editor.chain().focus().toggleHeading({ level: level as 1 | 2 | 3 }).run();
+        if ([1, 2, 3, 4].includes(level)) {
+          editor.chain().focus().toggleHeading({ level: level as 1 | 2 | 3 | 4 }).run();
         }
       }
     },
@@ -466,7 +466,9 @@ export default function Home() {
       ? "h2"
       : editor?.isActive("heading", { level: 3 })
         ? "h3"
-        : "paragraph";
+        : editor?.isActive("heading", { level: 4 })
+          ? "h4"
+          : "paragraph";
 
   return (
     <main className={`page ${theme}`} style={{ "--topbar-sticky-height": `${topbarStickyHeight}px` } as CSSProperties}>
@@ -517,6 +519,8 @@ export default function Home() {
                 <option value="h1">Heading 1</option>
                 <option value="h2">Heading 2</option>
                 <option value="h3">Heading 3</option>
+                <option value="h4">Heading 4</option>
+                <option value="paragraph">Paragraph</option>
               </select>
               <button
                 className={editor?.isActive("bold") ? "active" : ""}
