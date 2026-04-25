@@ -91,6 +91,55 @@ function cleanHtml(input: string): string {
   return doc.body.innerHTML.trim();
 }
 
+function cleanExportHtml(input: string): string {
+  if (typeof window === "undefined") {
+    return input;
+  }
+
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(cleanHtml(input), "text/html");
+
+  doc.querySelectorAll("table colgroup").forEach((node) => node.remove());
+
+  doc.querySelectorAll<HTMLElement>("table, thead, tbody, tr, th, td").forEach((node) => {
+    node.removeAttribute("style");
+    node.removeAttribute("class");
+    node.removeAttribute("id");
+
+    if (node.getAttribute("colspan") === "1") {
+      node.removeAttribute("colspan");
+    }
+    if (node.getAttribute("rowspan") === "1") {
+      node.removeAttribute("rowspan");
+    }
+  });
+
+  doc.querySelectorAll("th > p:only-child, td > p:only-child").forEach((paragraph) => {
+    paragraph.replaceWith(...Array.from(paragraph.childNodes));
+  });
+
+  doc.querySelectorAll("a").forEach((anchor) => {
+    anchor.removeAttribute("rel");
+    anchor.removeAttribute("target");
+  });
+
+  return formatHtmlReadable(doc.body.innerHTML.trim());
+}
+
+function normalizeHtmlForOutput(input: string): string {
+  if (typeof window === "undefined") {
+    return input;
+  }
+
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(input, "text/html");
+  doc.querySelectorAll("a").forEach((anchor) => {
+    anchor.removeAttribute("rel");
+    anchor.removeAttribute("target");
+  });
+  return doc.body.innerHTML.trim();
+}
+
 function escapeMdTableCell(value: string): string {
   return value.replace(/\|/g, "\\|").replace(/\n+/g, " ").trim();
 }
@@ -211,22 +260,27 @@ export default function Home() {
         types: ["heading", "paragraph"]
       }),
       Link.configure({
-        openOnClick: false,
-        HTMLAttributes: {
-          rel: "noopener noreferrer nofollow"
-        }
+        openOnClick: false
       })
     ],
     content: defaultHtml,
     onCreate: ({ editor: instance }) => {
       const html = instance.getHTML();
       setLiveHtml(html);
-      setRightPaneInput(outputModeRef.current === "html" ? formatHtmlReadable(html) : htmlToMarkdownWithTables(html, turndown));
+      setRightPaneInput(
+        outputModeRef.current === "html"
+          ? formatHtmlReadable(normalizeHtmlForOutput(html))
+          : htmlToMarkdownWithTables(html, turndown)
+      );
     },
     onUpdate: ({ editor: instance }) => {
       const html = instance.getHTML();
       setLiveHtml(html);
-      setRightPaneInput(outputModeRef.current === "html" ? formatHtmlReadable(html) : htmlToMarkdownWithTables(html, turndown));
+      setRightPaneInput(
+        outputModeRef.current === "html"
+          ? formatHtmlReadable(normalizeHtmlForOutput(html))
+          : htmlToMarkdownWithTables(html, turndown)
+      );
     },
     editorProps: {
       attributes: {
@@ -298,9 +352,14 @@ export default function Home() {
       return;
     }
 
-    await navigator.clipboard.writeText(rightPaneInput);
+    const textToCopy =
+      outputMode === "html"
+        ? cleanExportHtml(editor?.getHTML() ?? currentHtml)
+        : rightPaneInput;
+
+    await navigator.clipboard.writeText(textToCopy);
     showNotification(`Copied ${outputMode.toUpperCase()} to clipboard`);
-  }, [outputMode, rightPaneInput, showNotification]);
+  }, [currentHtml, editor, outputMode, rightPaneInput, showNotification]);
 
   const onCleanHtml = useCallback(() => {
     if (!editor) {
@@ -400,6 +459,11 @@ export default function Home() {
         return;
       }
 
+      if (value === "blockquote") {
+        editor.chain().focus().toggleBlockquote().run();
+        return;
+      }
+
       if (value.startsWith("h")) {
         const level = Number(value.slice(1));
         if ([1, 2, 3, 4].includes(level)) {
@@ -468,6 +532,8 @@ export default function Home() {
         ? "h3"
         : editor?.isActive("heading", { level: 4 })
           ? "h4"
+          : editor?.isActive("blockquote")
+            ? "blockquote"
           : "paragraph";
 
   return (
@@ -478,7 +544,7 @@ export default function Home() {
           <button
             onClick={() => {
               setOutputMode("html");
-              setRightPaneInput(formatHtmlReadable(currentHtml));
+              setRightPaneInput(formatHtmlReadable(normalizeHtmlForOutput(currentHtml)));
             }}
             className={outputMode === "html" ? "active" : ""}
           >
@@ -521,6 +587,7 @@ export default function Home() {
                 <option value="h3">Heading 3</option>
                 <option value="h4">Heading 4</option>
                 <option value="paragraph">Paragraph</option>
+                <option value="blockquote">Quote</option>
               </select>
               <button
                 className={editor?.isActive("bold") ? "active" : ""}
