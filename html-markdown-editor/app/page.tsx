@@ -121,6 +121,16 @@ function cleanExportHtml(input: string): string {
     anchor.removeAttribute("target");
   });
 
+  doc.querySelectorAll("p").forEach((paragraph) => {
+    const text = paragraph.textContent?.replace(/\u00a0/g, "").trim() ?? "";
+    const onlyBreaks = Array.from(paragraph.childNodes).every((node) => {
+      return node.nodeType === Node.ELEMENT_NODE && (node as Element).tagName.toLowerCase() === "br";
+    });
+    if (!text && onlyBreaks) {
+      paragraph.remove();
+    }
+  });
+
   return formatHtmlReadable(doc.body.innerHTML.trim());
 }
 
@@ -140,6 +150,15 @@ function normalizeHtmlForOutput(input: string): string {
   doc.querySelectorAll("a").forEach((anchor) => {
     anchor.removeAttribute("rel");
     anchor.removeAttribute("target");
+  });
+  doc.querySelectorAll("p").forEach((paragraph) => {
+    const text = paragraph.textContent?.replace(/\u00a0/g, "").trim() ?? "";
+    const onlyBreaks = Array.from(paragraph.childNodes).every((node) => {
+      return node.nodeType === Node.ELEMENT_NODE && (node as Element).tagName.toLowerCase() === "br";
+    });
+    if (!text && onlyBreaks) {
+      paragraph.remove();
+    }
   });
   return doc.body.innerHTML.trim();
 }
