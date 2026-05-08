@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import { EditorContent, useEditor } from "@tiptap/react";
+import { EditorContent, useEditor, type Editor } from "@tiptap/react";
 import { getMarkRange } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
 import { Table } from "@tiptap/extension-table";
@@ -21,6 +21,7 @@ import { gfm } from "turndown-plugin-gfm";
 
 type OutputMode = "html" | "markdown";
 type ThemeMode = "light" | "dark";
+type BlockFormat = "paragraph" | "h1" | "h2" | "h3" | "h4" | "blockquote";
 type LinkPreviewState = {
   isOpen: boolean;
   href: string;
@@ -32,6 +33,25 @@ type LinkPreviewState = {
 };
 
 const defaultHtml = "<h2>Welcome to HTML/Markdown EDITOR</h2><p>Start typing...</p>";
+
+function getCurrentBlockFormat(editor: Editor): BlockFormat {
+  if (editor.isActive("heading", { level: 1 })) {
+    return "h1";
+  }
+  if (editor.isActive("heading", { level: 2 })) {
+    return "h2";
+  }
+  if (editor.isActive("heading", { level: 3 })) {
+    return "h3";
+  }
+  if (editor.isActive("heading", { level: 4 })) {
+    return "h4";
+  }
+  if (editor.isActive("blockquote")) {
+    return "blockquote";
+  }
+  return "paragraph";
+}
 
 function formatHtmlReadable(input: string): string {
   if (!input.trim()) {
@@ -221,6 +241,8 @@ function htmlToMarkdownWithTables(html: string, turndown: TurndownService): stri
 export default function Home() {
   const [outputMode, setOutputMode] = useState<OutputMode>("html");
   const [theme, setTheme] = useState<ThemeMode>("light");
+  const [currentFormat, setCurrentFormat] = useState<BlockFormat>("paragraph");
+  const [isBoldActive, setIsBoldActive] = useState(false);
   const [notification, setNotification] = useState("");
   const [liveHtml, setLiveHtml] = useState(defaultHtml);
   const [rightPaneInput, setRightPaneInput] = useState(defaultHtml);
@@ -290,6 +312,8 @@ export default function Home() {
     onCreate: ({ editor: instance }) => {
       const html = instance.getHTML();
       setLiveHtml(html);
+      setCurrentFormat(getCurrentBlockFormat(instance));
+      setIsBoldActive(instance.isActive("bold"));
       setRightPaneInput(
         outputModeRef.current === "html"
           ? formatHtmlReadable(normalizeHtmlForOutput(html))
@@ -299,11 +323,17 @@ export default function Home() {
     onUpdate: ({ editor: instance }) => {
       const html = instance.getHTML();
       setLiveHtml(html);
+      setCurrentFormat(getCurrentBlockFormat(instance));
+      setIsBoldActive(instance.isActive("bold"));
       setRightPaneInput(
         outputModeRef.current === "html"
           ? formatHtmlReadable(normalizeHtmlForOutput(html))
           : htmlToMarkdownWithTables(html, turndown)
       );
+    },
+    onSelectionUpdate: ({ editor: instance }) => {
+      setCurrentFormat(getCurrentBlockFormat(instance));
+      setIsBoldActive(instance.isActive("bold"));
     },
     editorProps: {
       attributes: {
@@ -561,18 +591,6 @@ export default function Home() {
     showNotification("Link removed");
   }, [editor, linkPreview.from, linkPreview.isOpen, linkPreview.to, showNotification]);
 
-  const currentFormat = editor?.isActive("heading", { level: 1 })
-    ? "h1"
-    : editor?.isActive("heading", { level: 2 })
-      ? "h2"
-      : editor?.isActive("heading", { level: 3 })
-        ? "h3"
-        : editor?.isActive("heading", { level: 4 })
-          ? "h4"
-          : editor?.isActive("blockquote")
-            ? "blockquote"
-          : "paragraph";
-
   return (
     <main className={`page ${theme}`} style={{ "--topbar-sticky-height": `${topbarStickyHeight}px` } as CSSProperties}>
       <header className="topbar" ref={topbarRef}>
@@ -627,7 +645,7 @@ export default function Home() {
                 <option value="blockquote">Quote</option>
               </select>
               <button
-                className={editor?.isActive("bold") ? "active" : ""}
+                className={isBoldActive ? "active" : ""}
                 onClick={() => editor?.chain().focus().toggleBold().run()}
                 title="Bold"
                 aria-label="Bold"
