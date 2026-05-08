@@ -551,6 +551,16 @@ export default function Home() {
     showNotification("Link URL copied");
   }, [linkPreview.href, showNotification]);
 
+  const deleteLinkFromPreview = useCallback(() => {
+    if (!editor || !linkPreview.isOpen) {
+      return;
+    }
+
+    editor.chain().focus().setTextSelection({ from: linkPreview.from, to: linkPreview.to }).unsetLink().run();
+    setLinkPreview((prev) => ({ ...prev, isOpen: false }));
+    showNotification("Link removed");
+  }, [editor, linkPreview.from, linkPreview.isOpen, linkPreview.to, showNotification]);
+
   const currentFormat = editor?.isActive("heading", { level: 1 })
     ? "h1"
     : editor?.isActive("heading", { level: 2 })
@@ -758,6 +768,7 @@ export default function Home() {
           </label>
           <div className="link-preview-actions">
             <button onClick={() => void copyLinkUrl()}>Copy URL</button>
+            <button onClick={deleteLinkFromPreview}>Delete Link</button>
             <button onClick={applyLinkPreviewChanges}>Save</button>
             <button onClick={() => setLinkPreview((prev) => ({ ...prev, isOpen: false }))}>Close</button>
           </div>
