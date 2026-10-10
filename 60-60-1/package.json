@@ -1,0 +1,9 @@
+{
+  "name": "60-60-1",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "dependencies": {
+    "google-auth-library": "^9.15.1"
+  }
+}
