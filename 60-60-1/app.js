@@ -8,6 +8,7 @@ const NAV = [
   { id: "setup", label: "Старт", short: "Старт" },
 ];
 const TOKEN_KEY = "challenge-60601-token";
+const DESIGN_KEY = "challenge-60601-design";
 
 const longDate = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long" });
 const fullDate = new Intl.DateTimeFormat("ru-RU", {
@@ -267,8 +268,41 @@ function navLinks(view, short) {
   }).join("");
 }
 
+function savedDesign() {
+  try {
+    return localStorage.getItem(DESIGN_KEY) === "ink" ? "ink" : "paper";
+  } catch {
+    return "paper";
+  }
+}
+
+function applyDesign(name) {
+  const design = name === "ink" ? "ink" : "paper";
+  document.documentElement.dataset.design = design;
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.content = design === "ink" ? "#121418" : "#f3f0ea";
+  document.querySelectorAll(".design-toggle").forEach((button) => {
+    button.setAttribute("aria-pressed", design === "ink" ? "true" : "false");
+  });
+}
+
+function designToggle() {
+  const ink = document.documentElement.dataset.design === "ink";
+  return `<div class="design-bar"><button type="button" class="design-toggle" data-action="toggle-design" aria-pressed="${ink ? "true" : "false"}"><span class="for-paper">Тёмный вид</span><span class="for-ink">Светлый вид</span></button></div>`;
+}
+
+function toggleDesign() {
+  applyDesign(document.documentElement.dataset.design === "ink" ? "paper" : "ink");
+  try {
+    localStorage.setItem(DESIGN_KEY, document.documentElement.dataset.design);
+  } catch {
+    /* the choice still applies for this visit */
+  }
+}
+
 function renderHeader(view) {
   return `
+    ${designToggle()}
     <header class="header">
       <div class="brand">
         <div class="logo">60/60/1</div>
@@ -636,12 +670,12 @@ function renderSetup() {
 
 function render() {
   if (state.status === "loading") {
-    root.innerHTML = `<div class="wrap"><main class="narrow"><p class="kicker">60/60/1</p><h1>Загрузка</h1></main></div>`;
+    root.innerHTML = `<div class="wrap">${designToggle()}<main class="narrow"><p class="kicker">60/60/1</p><h1>Загрузка</h1></main></div>`;
     return;
   }
   if (state.status === "error") {
     root.innerHTML = `
-      <div class="wrap"><main class="narrow">
+      <div class="wrap">${designToggle()}<main class="narrow">
         <p class="kicker">60/60/1</p>
         <h1>Не открылось</h1>
         <p class="intro">${esc(state.error)}</p>
@@ -756,18 +790,27 @@ function applyBoard(data) {
   state.error = "";
 }
 
+let boardRequest = 0;
+
 async function loadBoard(options = {}) {
   const silent = Boolean(options.silent) && state.status === "ready";
+  const request = ++boardRequest;
+  const view = currentView();
   if (!silent) {
     state.status = "loading";
     render();
   }
   try {
-    applyBoard(await api("/api/board"));
+    const data = await api("/api/board");
+    if (request !== boardRequest) return;
+    applyBoard(data);
   } catch (error) {
+    if (request !== boardRequest) return;
     if (error.status === 401) {
       try {
-        applyBoard(await api("/api/board", { token: "" }));
+        const data = await api("/api/board", { token: "" });
+        if (request !== boardRequest) return;
+        applyBoard(data);
       } catch (again) {
         if (!silent) {
           state.status = "error";
@@ -779,6 +822,10 @@ async function loadBoard(options = {}) {
       state.error = error.message;
     }
   }
+  if (request !== boardRequest) return;
+  if (silent && currentView() !== view) return;
+  const active = document.activeElement;
+  if (silent && active && (active.tagName === "INPUT" || active.tagName === "TEXTAREA")) return;
   render();
 }
 
@@ -930,6 +977,7 @@ function onClick(event) {
   } else if (action === "retry") loadBoard();
   else if (action === "use-code") useCode();
   else if (action === "copy-code") copyCode();
+  else if (action === "toggle-design") toggleDesign();
 }
 
 function onInput(event) {
@@ -948,12 +996,16 @@ function onInput(event) {
 }
 
 function boot() {
+  applyDesign(savedDesign());
   const id = location.hash.replace("#", "");
   if (!VIEWS.includes(id)) history.replaceState(null, "", "#today");
   window.addEventListener("hashchange", () => {
     const next = location.hash.replace("#", "");
     if (!VIEWS.includes(next)) history.replaceState(null, "", "#today");
-    if (state.status === "ready") loadBoard({ silent: true });
+    if (state.status !== "ready") return;
+    render();
+    const view = currentView();
+    if (view === "today" || view === "friends") loadBoard({ silent: true });
   });
   loadBoard();
 }
