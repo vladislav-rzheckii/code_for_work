@@ -566,14 +566,13 @@ h1 {
 .avatar.face {
   display: grid;
   place-items: center;
-  color: var(--done);
+  overflow: hidden;
 }
 
-.avatar.face svg {
-  width: 72%;
-  height: 72%;
-  fill: currentColor;
-  stroke: currentColor;
+.avatar.face img {
+  width: 78%;
+  height: 78%;
+  object-fit: contain;
 }
 
 .photo-field {
@@ -956,6 +955,10 @@ html[data-design="ink"] .streak-stat.hot {
   border-color: rgba(158, 216, 191, 0.45);
 }
 
+html[data-design="ink"] .avatar.face img {
+  filter: invert(1);
+}
+
 html[data-design="ink"] .people li {
   margin-top: 10px;
   padding: 16px;
@@ -1141,7 +1144,6 @@ html[data-design="rose"] .legend,
 html[data-design="rose"] .detail,
 html[data-design="rose"] .field,
 html[data-design="rose"] .note-field,
-html[data-design="rose"] .tabbar,
 html[data-design="rose"] .grid,
 html[data-design="rose"] .links,
 html[data-design="rose"] .mark-row,
@@ -1226,6 +1228,8 @@ html[data-design="rose"] .day-note {
 }
 
 html[data-design="rose"] .tabbar {
+  position: fixed;
+  z-index: 2;
   background: rgba(255, 247, 251, 0.94);
 }
 

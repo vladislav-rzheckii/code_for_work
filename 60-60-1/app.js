@@ -123,7 +123,7 @@ function avatarMarkup(person, large) {
   const photo = safePhoto(person.photo);
   const cls = large ? "avatar large" : "avatar";
   if (photo) return `<img class="${cls}" src="${esc(photo)}" alt="" />`;
-  return `<span class="${cls} face" aria-hidden="true"><svg viewBox="0 0 48 48"><circle cx="17" cy="20" r="2.4"/><circle cx="31" cy="20" r="2.4"/><path d="M16 29.5c2.4 3.2 5.2 4.6 8 4.6s5.6-1.4 8-4.6" fill="none" stroke-width="2.4" stroke-linecap="round"/></svg></span>`;
+  return `<span class="${cls} face" aria-hidden="true"><img src="fallback.png" alt="" /></span>`;
 }
 
 function compressPhoto(file) {
