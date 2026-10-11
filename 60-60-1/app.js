@@ -7,6 +7,12 @@ const NAV = [
   { id: "friends", label: "Друзья", short: "Друзья" },
   { id: "setup", label: "Старт", short: "Старт" },
 ];
+const NAV_ICONS = {
+  today: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="7.25"/><path d="M12 8.2V12l2.4 1.6"/></svg>`,
+  days: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3.5v3M16 3.5v3M4 10h16"/></svg>`,
+  friends: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="2.3"/><circle cx="16" cy="9" r="1.9"/><path d="M4.8 18.2c.5-2.5 2.3-3.9 4.2-3.9s3.7 1.4 4.2 3.9"/><path d="M13.2 14.7c1-.4 2.1-.5 3.2-.1 1.4.5 2.3 1.8 2.7 3.4"/></svg>`,
+  setup: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6 20V4.5"/><path d="M6 5.2h11.2L14.4 8.6l2.8 3.4H6"/></svg>`,
+};
 const TOKEN_KEY = "challenge-60601-token";
 const DESIGN_KEY = "challenge-60601-design";
 
@@ -264,7 +270,10 @@ function navLinks(view, short) {
   return NAV.map((item) => {
     const current = item.id === view ? ' aria-current="page"' : "";
     const label = short ? item.short : item.label;
-    return `<a href="#${item.id}"${current}>${label}</a>`;
+    const icon = short
+      ? `<span class="nav-icon" aria-hidden="true">${NAV_ICONS[item.id]}</span>`
+      : "";
+    return `<a href="#${item.id}"${current}>${icon}${label}</a>`;
   }).join("");
 }
 
@@ -280,7 +289,7 @@ function applyDesign(name) {
   const design = name === "ink" ? "ink" : "paper";
   document.documentElement.dataset.design = design;
   const meta = document.querySelector('meta[name="theme-color"]');
-  if (meta) meta.content = design === "ink" ? "#121418" : "#f3f0ea";
+  if (meta) meta.content = design === "ink" ? "#121418" : "#e4dfd6";
   document.querySelectorAll(".design-toggle").forEach((button) => {
     button.setAttribute("aria-pressed", design === "ink" ? "true" : "false");
   });
@@ -321,7 +330,7 @@ function renderTabbar(view) {
 function renderStats(summary) {
   return `
     <div class="stats">
-      <div class="stat">
+      <div class="stat streak-stat${summary.streak > 0 ? " hot" : ""}">
         <strong>${summary.streak}</strong>
         <span>${plural(summary.streak, "день подряд", "дня подряд", "дней подряд")}</span>
       </div>
@@ -432,7 +441,7 @@ function friendsLine() {
     .sort((a, b) => b.dayNumber - a.dayNumber)[0];
   if (!lead) return joined() ? "Пока здесь только ты" : "Друзей пока нет";
   if (lead.streak > 0) {
-    return `${lead.name} на дне ${lead.dayNumber} · серия ${lead.streak} ${plural(lead.streak, "день", "дня", "дней")}`;
+    return `${lead.name} держит серию ${lead.streak} ${plural(lead.streak, "день", "дня", "дней")}`;
   }
   return `${lead.name} на дне ${lead.dayNumber} из 60`;
 }
@@ -593,15 +602,31 @@ function progressLine(person) {
   return `день ${person.dayNumber} из 60`;
 }
 
-function paceLine(person) {
-  if (person.phase === "upcoming") return "старт впереди";
-  if (person.phase === "finished") return `${person.done} из 60 отмечено`;
-  const todayBit = person.checkedIn ? "сегодня отмечено" : "сегодня ещё нет";
-  if (person.streak > 0) {
-    return `серия ${person.streak} ${plural(person.streak, "день", "дня", "дней")} · ${todayBit}`;
+function streakBlock(person) {
+  if (person.phase === "upcoming") {
+    return `<span class="streak-mark wait"><span class="streak-caption">старт впереди</span></span>`;
   }
-  if (person.hasMiss) return `серия прервана · ${todayBit}`;
-  return todayBit;
+  const hot = person.streak > 0;
+  const caption = hot
+    ? `${plural(person.streak, "день", "дня", "дней")} подряд`
+    : person.hasMiss
+      ? "сегодня можно начать серию"
+      : "серия начнётся сегодня";
+  if (!hot) {
+    return `<span class="streak-mark wait"><span class="streak-caption">${caption}</span></span>`;
+  }
+  return `
+    <span class="streak-mark hot">
+      <strong>${person.streak}</strong>
+      <span class="streak-caption">${caption}</span>
+    </span>
+  `;
+}
+
+function todayLine(person) {
+  if (person.phase === "finished") return `${person.done} из 60 часов`;
+  if (person.phase !== "active") return "";
+  return person.checkedIn ? "сегодня час закрыт" : "сегодня час впереди";
 }
 
 function renderFriends() {
@@ -617,7 +642,8 @@ function renderFriends() {
           </div>
           <div class="person-status">
             <span class="mark ${kind}">${esc(progressLine(person))}</span>
-            <span class="person-streak">${esc(paceLine(person))}</span>
+            ${streakBlock(person)}
+            ${todayLine(person) ? `<span class="person-streak">${esc(todayLine(person))}</span>` : ""}
           </div>
           <div class="person-track" aria-hidden="true"><i style="transform: scaleX(${ratio})"></i></div>
         </li>
