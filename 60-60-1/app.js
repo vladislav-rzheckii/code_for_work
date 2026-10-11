@@ -277,31 +277,44 @@ function navLinks(view, short) {
   }).join("");
 }
 
+const THEMES = {
+  paper: { label: "Светлая", color: "#e4dfd6" },
+  ink: { label: "Тёмная", color: "#121418" },
+  rose: { label: "Розовая", color: "#ffd0e6" },
+};
+
 function savedDesign() {
   try {
-    return localStorage.getItem(DESIGN_KEY) === "ink" ? "ink" : "paper";
+    const saved = localStorage.getItem(DESIGN_KEY);
+    return Object.prototype.hasOwnProperty.call(THEMES, saved) ? saved : "paper";
   } catch {
     return "paper";
   }
 }
 
 function applyDesign(name) {
-  const design = name === "ink" ? "ink" : "paper";
+  const design = Object.prototype.hasOwnProperty.call(THEMES, name) ? name : "paper";
   document.documentElement.dataset.design = design;
   const meta = document.querySelector('meta[name="theme-color"]');
-  if (meta) meta.content = design === "ink" ? "#121418" : "#e4dfd6";
-  document.querySelectorAll(".design-toggle").forEach((button) => {
-    button.setAttribute("aria-pressed", design === "ink" ? "true" : "false");
+  if (meta) meta.content = THEMES[design].color;
+  document.querySelectorAll(".design-choice").forEach((button) => {
+    button.setAttribute("aria-pressed", button.dataset.theme === design ? "true" : "false");
   });
 }
 
 function designToggle() {
-  const ink = document.documentElement.dataset.design === "ink";
-  return `<div class="design-bar"><button type="button" class="design-toggle" data-action="toggle-design" aria-pressed="${ink ? "true" : "false"}"><span class="for-paper">Тёмный вид</span><span class="for-ink">Светлый вид</span></button></div>`;
+  const current = document.documentElement.dataset.design || "paper";
+  const buttons = Object.entries(THEMES)
+    .map(([id, theme]) => {
+      const pressed = id === current ? "true" : "false";
+      return `<button type="button" class="design-choice" data-action="set-design" data-theme="${id}" aria-pressed="${pressed}">${theme.label}</button>`;
+    })
+    .join("");
+  return `<div class="design-bar" role="group" aria-label="Оформление">${buttons}</div>`;
 }
 
-function toggleDesign() {
-  applyDesign(document.documentElement.dataset.design === "ink" ? "paper" : "ink");
+function setDesign(name) {
+  applyDesign(name);
   try {
     localStorage.setItem(DESIGN_KEY, document.documentElement.dataset.design);
   } catch {
@@ -1003,7 +1016,7 @@ function onClick(event) {
   } else if (action === "retry") loadBoard();
   else if (action === "use-code") useCode();
   else if (action === "copy-code") copyCode();
-  else if (action === "toggle-design") toggleDesign();
+  else if (action === "set-design") setDesign(el.dataset.theme);
 }
 
 function onInput(event) {
