@@ -442,7 +442,7 @@ function renderGuest() {
     <div class="narrow">
       <p class="kicker">Можно начать в любой день</p>
       <h1>Одна цель на 60 дней</h1>
-      <p class="intro">Выбери цель и свою дату. Кто уже идёт, остаётся на своём дне — на него можно смотреть и не ждать остальных.</p>
+      <p class="intro">Выбери цель которую хочешь достичь и стартуй. Смотри на друзей и мотивируйся их успехом.</p>
       <div class="links">
         <a class="quiet-link" href="#setup">Выбрать старт</a>
         <a class="quiet-link" href="#friends">${esc(friendsLine())}</a>
@@ -519,7 +519,7 @@ function activeOffset() {
 function renderDays() {
   if (!joined()) {
     return `
-      <h1>60 дней</h1>
+      <h1>60 дней работы над собой</h1>
       <p class="intro">Календарь появится после того, как выберешь свою дату старта.</p>
       <div class="links"><a class="quiet-link" href="#setup">Выбрать старт</a></div>
     `;
@@ -566,8 +566,8 @@ function renderDays() {
       : `${summary.done} отмечено · ${summary.missed} ${plural(summary.missed, "пропуск", "пропуска", "пропусков")}`;
   return `
     <p class="kicker">${esc(formatRange())}</p>
-    <h1>60 дней</h1>
-    <p class="intro">Один пропуск обнуляет серию. Шестьдесят дней на этом не останавливаются.</p>
+    <h1>60 дней работы над собой</h1>
+    <p class="intro">Двигайся вперед, но помни, один пропуск обнуляет серию.</p>
     <p class="summary-line">${esc(line)}</p>
     <ul class="legend">
       <li><i class="swatch done"></i> Сделано</li>
@@ -627,7 +627,7 @@ function renderFriends() {
   return `
     <p class="kicker">Каждый со своего дня</p>
     <h1>Друзья</h1>
-    <p class="intro">У каждого свой старт. Кто-то начал раньше, кто-то только входит. Их прогресс — чтобы было на кого смотреть.</p>
+    <p class="intro">У каждого своя дата старта. Кто-то начал раньше, кто-то только входит, но все двигаются к достижению цели.</p>
     ${items ? `<ul class="people">${items}</ul>` : `<p class="summary-line">Пока никто не начал.</p>`}
   `;
 }
@@ -636,7 +636,7 @@ function renderSetup() {
   return `
     <div class="narrow">
       <h1>Старт</h1>
-      <p class="intro">Входи в любой день. У друзей свой старт и свой прогресс — он рядом, чтобы было на кого смотреть. Одна цель, отметка за час.</p>
+      <p class="intro">Присоединяйся к челленджу 60-60-1. Мотивируйся успехом друзей и стань лучшей версией себя.</p>
       <form id="setup-form">
         <label class="field">
           <span>Как к вам обращаться</span>
