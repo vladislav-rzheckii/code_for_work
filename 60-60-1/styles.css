@@ -520,10 +520,23 @@ h1 {
   font-size: 18px;
 }
 
+.people li.is-you {
+  background: var(--done-bg);
+  border-color: rgba(27, 79, 58, 0.45);
+  box-shadow: inset 4px 0 0 var(--done);
+}
+
 .you-tag {
-  margin-left: 6px;
-  color: var(--muted);
-  font-size: 13px;
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 7px 2px;
+  border-radius: 999px;
+  background: var(--done);
+  color: #f4faf7;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.3;
+  vertical-align: 2px;
 }
 
 .person-goal {
@@ -882,6 +895,16 @@ html[data-design="ink"] .people li {
   border: 1px solid var(--line);
   border-radius: 14px;
   background: var(--paper);
+}
+
+html[data-design="ink"] .people li.is-you {
+  background: #1a3330;
+  border-color: rgba(158, 216, 191, 0.55);
+  box-shadow: inset 4px 0 0 var(--done);
+}
+
+html[data-design="ink"] .you-tag {
+  color: #10241c;
 }
 
 html[data-design="ink"] .people li:last-child {

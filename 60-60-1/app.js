@@ -635,7 +635,7 @@ function renderFriends() {
       const ratio = person.phase === "upcoming" ? 0 : person.dayNumber / TOTAL_DAYS;
       const kind = person.phase === "active" && person.checkedIn ? "in" : "plain";
       return `
-        <li>
+        <li${person.you ? ' class="is-you"' : ""}>
           <div class="person-main">
             <div class="person-name">${esc(person.name)}${person.you ? ' <span class="you-tag">вы</span>' : ""}</div>
             <div class="person-goal">${esc(person.goal || "Цель не задана")}</div>
