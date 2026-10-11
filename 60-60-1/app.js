@@ -26,6 +26,7 @@ const fullDate = new Intl.DateTimeFormat("ru-RU", {
 const state = {
   name: "",
   goal: "",
+  photo: "",
   start: "",
   marks: {},
   people: [],
@@ -112,6 +113,52 @@ function plural(amount, one, few, many) {
   if (last === 1) return one;
   if (last >= 2 && last <= 4) return few;
   return many;
+}
+
+function safePhoto(value) {
+  return /^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(value || "") && value.length <= 40000 ? value : "";
+}
+
+function avatarMarkup(person, large) {
+  const photo = safePhoto(person.photo);
+  const cls = large ? "avatar large" : "avatar";
+  if (photo) return `<img class="${cls}" src="${esc(photo)}" alt="" />`;
+  return `<span class="${cls} face" aria-hidden="true"><svg viewBox="0 0 48 48"><circle cx="17" cy="20" r="2.4"/><circle cx="31" cy="20" r="2.4"/><path d="M16 29.5c2.4 3.2 5.2 4.6 8 4.6s5.6-1.4 8-4.6" fill="none" stroke-width="2.4" stroke-linecap="round"/></svg></span>`;
+}
+
+function compressPhoto(file) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    const url = URL.createObjectURL(file);
+    image.onload = () => {
+      URL.revokeObjectURL(url);
+      const size = 128;
+      const canvas = document.createElement("canvas");
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext("2d");
+      const scale = Math.max(size / image.width, size / image.height);
+      const width = image.width * scale;
+      const height = image.height * scale;
+      ctx.drawImage(image, (size - width) / 2, (size - height) / 2, width, height);
+      let quality = 0.72;
+      let data = canvas.toDataURL("image/jpeg", quality);
+      while (data.length > 40000 && quality > 0.4) {
+        quality -= 0.08;
+        data = canvas.toDataURL("image/jpeg", quality);
+      }
+      if (!safePhoto(data)) {
+        reject(new Error("Фото слишком большое."));
+        return;
+      }
+      resolve(data);
+    };
+    image.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("Фото не открылось."));
+    };
+    image.src = url;
+  });
 }
 
 function esc(value) {
@@ -205,6 +252,7 @@ function recordSummary(person) {
   return summaryFrom(index, (offset) => cellOn(person.startDate, marks, offset), {
     name: person.name,
     goal: person.goal,
+    photo: safePhoto(person.photo),
     you: person.id === state.meId,
   });
 }
@@ -610,24 +658,14 @@ function renderDays() {
 }
 
 function progressLine(person) {
-  if (person.phase === "upcoming") return "ещё не начал";
+  if (person.phase === "upcoming") return "старт впереди";
   if (person.phase === "finished") return "60 дней позади";
   return `день ${person.dayNumber} из 60`;
 }
 
 function streakBlock(person) {
-  if (person.phase === "upcoming") {
-    return `<span class="streak-mark wait"><span class="streak-caption">старт впереди</span></span>`;
-  }
-  const hot = person.streak > 0;
-  const caption = hot
-    ? `${plural(person.streak, "день", "дня", "дней")} подряд`
-    : person.hasMiss
-      ? "сегодня можно начать серию"
-      : "серия начнётся сегодня";
-  if (!hot) {
-    return `<span class="streak-mark wait"><span class="streak-caption">${caption}</span></span>`;
-  }
+  if (person.phase !== "active" || person.streak <= 0) return "";
+  const caption = `${plural(person.streak, "день", "дня", "дней")} подряд`;
   return `
     <span class="streak-mark hot">
       <strong>${person.streak}</strong>
@@ -649,14 +687,19 @@ function renderFriends() {
       const kind = person.phase === "active" && person.checkedIn ? "in" : "plain";
       return `
         <li${person.you ? ' class="is-you"' : ""}>
-          <div class="person-main">
-            <div class="person-name">${esc(person.name)}${person.you ? ' <span class="you-tag">вы</span>' : ""}</div>
-            <div class="person-goal">${esc(person.goal || "Цель не задана")}</div>
+          <div class="person-head">
+            ${avatarMarkup(person)}
+            <div class="person-id">
+              <div class="person-name">${esc(person.name)}${person.you ? ' <span class="you-tag">вы</span>' : ""}</div>
+              <div class="person-goal">${esc(person.goal || "Цель не задана")}</div>
+            </div>
           </div>
-          <div class="person-status">
-            <span class="mark ${kind}">${esc(progressLine(person))}</span>
+          <div class="person-meta">
+            <div class="person-facts">
+              <span class="mark ${kind}">${esc(progressLine(person))}</span>
+              ${todayLine(person) ? `<span class="person-streak">${esc(todayLine(person))}</span>` : ""}
+            </div>
             ${streakBlock(person)}
-            ${todayLine(person) ? `<span class="person-streak">${esc(todayLine(person))}</span>` : ""}
           </div>
           <div class="person-track" aria-hidden="true"><i style="transform: scaleX(${ratio})"></i></div>
         </li>
@@ -677,6 +720,15 @@ function renderSetup() {
       <h1>Старт</h1>
       <p class="intro">Присоединяйся к челленджу 60-60-1. Мотивируйся успехом друзей и стань лучшей версией себя.</p>
       <form id="setup-form">
+        <div class="photo-field">
+          <button type="button" class="avatar-pick" data-action="pick-photo" aria-label="Выбрать фото">${avatarMarkup({ name: state.name, photo: state.photo }, true)}</button>
+          <div>
+            <span>Фото профиля</span>
+            <p class="hint">Друзья увидят его в карточке.</p>
+            ${state.photo ? '<button type="button" class="text-btn" data-action="clear-photo">Убрать фото</button>' : ""}
+          </div>
+          <input id="field-photo" type="file" accept="image/*" hidden />
+        </div>
         <label class="field">
           <span>Как к вам обращаться</span>
           <input id="field-name" name="name" type="text" maxlength="40" required value="${esc(state.name)}" />
@@ -821,6 +873,7 @@ function applyBoard(data) {
     state.name = data.me.name || "";
     state.goal = data.me.goal || "";
     state.start = data.me.startDate || iso(today());
+    state.photo = safePhoto(data.me.photo);
     Object.entries(data.myMarks || {}).forEach(([date, note]) => {
       state.marks[date] = { note: note || "" };
     });
@@ -921,6 +974,26 @@ function flash(message) {
   }, 1600);
 }
 
+function captureSetupFields() {
+  const name = document.getElementById("field-name");
+  const goal = document.getElementById("field-goal");
+  const start = document.getElementById("field-start");
+  if (name) state.name = name.value;
+  if (goal) state.goal = goal.value;
+  if (start) state.start = start.value;
+}
+
+async function choosePhoto(file) {
+  captureSetupFields();
+  try {
+    state.photo = await compressPhoto(file);
+    state.notice = "";
+  } catch (error) {
+    state.notice = error.message;
+  }
+  render();
+}
+
 async function saveSetup(event) {
   event.preventDefault();
   if (state.busy) return;
@@ -939,7 +1012,7 @@ async function saveSetup(event) {
   state.busy = true;
   render();
   try {
-    const body = { name, goal, startDate: start };
+    const body = { name, goal, startDate: start, photo: safePhoto(state.photo) };
     const data = wasJoined
       ? await api("/api/profile", { method: "PATCH", body })
       : await api("/api/join", { method: "POST", body });
@@ -1017,6 +1090,13 @@ function onClick(event) {
   else if (action === "use-code") useCode();
   else if (action === "copy-code") copyCode();
   else if (action === "set-design") setDesign(el.dataset.theme);
+  else if (action === "pick-photo") document.getElementById("field-photo")?.click();
+  else if (action === "clear-photo") {
+    captureSetupFields();
+    state.photo = "";
+    state.notice = "";
+    render();
+  }
 }
 
 function onInput(event) {
@@ -1054,5 +1134,10 @@ root.addEventListener("submit", (event) => {
   if (event.target.id === "setup-form") saveSetup(event);
 });
 root.addEventListener("input", onInput);
+root.addEventListener("change", (event) => {
+  if (event.target.id !== "field-photo") return;
+  const file = event.target.files && event.target.files[0];
+  if (file) choosePhoto(file);
+});
 window.setInterval(tick, 200);
 boot();

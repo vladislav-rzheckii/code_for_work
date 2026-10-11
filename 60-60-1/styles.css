@@ -479,9 +479,8 @@ h1 {
 
 .people li {
   display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  gap: 16px;
+  flex-direction: column;
+  gap: 12px;
   margin-top: 10px;
   padding: 16px;
   border: 1px solid var(--line);
@@ -489,10 +488,19 @@ h1 {
   background: var(--paper);
 }
 
+.person-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.person-id {
+  min-width: 0;
+  flex: 1;
+}
+
 .person-track {
-  flex: 1 0 100%;
   height: 4px;
-  margin-top: 4px;
   border-radius: 999px;
   background: rgba(26, 24, 20, 0.22);
   overflow: hidden;
@@ -511,13 +519,90 @@ h1 {
   border-bottom: 1px solid var(--line);
 }
 
-.person-main {
-  flex: 1 1 7rem;
+.person-name {
+  font-size: 18px;
+  line-height: 1.25;
+}
+
+.person-goal {
+  margin-top: 4px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.person-meta {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.person-facts {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
   min-width: 0;
 }
 
-.person-name {
-  font-size: 18px;
+.person-streak {
+  display: block;
+  margin-top: 0;
+}
+
+.avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex: none;
+  background: var(--done-bg);
+}
+
+.avatar.large {
+  width: 72px;
+  height: 72px;
+}
+
+.avatar.face {
+  display: grid;
+  place-items: center;
+  color: var(--done);
+}
+
+.avatar.face svg {
+  width: 72%;
+  height: 72%;
+  fill: currentColor;
+  stroke: currentColor;
+}
+
+.photo-field {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 22px;
+}
+
+.photo-field span {
+  display: block;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.avatar-pick {
+  width: 72px;
+  height: 72px;
+  padding: 0;
+  border-radius: 50%;
+  overflow: hidden;
+  flex: none;
+  box-shadow: inset 0 0 0 1.5px var(--line);
+}
+
+.avatar-pick .avatar {
+  width: 72px;
+  height: 72px;
+  display: block;
 }
 
 .people li.is-you {
@@ -539,29 +624,17 @@ h1 {
   vertical-align: 2px;
 }
 
-.person-goal {
-  margin-top: 2px;
-  overflow-wrap: anywhere;
-}
-
-.person-status {
-  flex: 1 1 9rem;
-  min-width: 0;
-  max-width: 62%;
-  text-align: right;
-}
-
 .mark.in {
   color: var(--done);
 }
 
 .streak-mark {
   display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  align-items: baseline;
-  gap: 6px;
-  margin-top: 6px;
+  flex-direction: column;
+  align-items: flex-end;
+  flex: none;
+  gap: 0;
+  margin-top: 0;
 }
 
 .streak-mark strong {
@@ -592,7 +665,6 @@ h1 {
 
 .person-streak {
   display: block;
-  margin-top: 2px;
 }
 
 .streak-stat.hot {

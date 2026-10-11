@@ -4,12 +4,13 @@ import { fail } from "./http.js";
 
 const PEOPLE = "People";
 const MARKS = "Marks";
-const PEOPLE_HEADERS = ["id", "name", "goal", "startDate", "token", "createdAt"];
+const PEOPLE_HEADERS = ["id", "name", "goal", "startDate", "token", "createdAt", "photo"];
 const MARK_HEADERS = ["personId", "date", "note", "updatedAt"];
 const TOTAL_DAYS = 60;
 
 let authClient;
 let sheetsReady = false;
+let photoHeaderReady = false;
 
 function credentials() {
   const sheetId = process.env.GOOGLE_SHEET_ID;
@@ -126,12 +127,28 @@ async function ensureSheets() {
     await sheets(":batchUpdate", { method: "POST", body: JSON.stringify({ requests }) });
   }
   const peopleHeader = await values(`${PEOPLE}!A1:F1`);
-  if (peopleHeader[0]?.[0] !== "id") await writeValues(`${PEOPLE}!A1:F1`, [PEOPLE_HEADERS]);
+  if (peopleHeader[0]?.[0] !== "id") {
+    await writeValues(`${PEOPLE}!A1:G1`, [PEOPLE_HEADERS]);
+    photoHeaderReady = true;
+  }
   const markHeader = await values(`${MARKS}!A1:D1`);
   if (markHeader[0]?.[0] !== "personId") await writeValues(`${MARKS}!A1:D1`, [MARK_HEADERS]);
   sheetsReady = true;
 }
 
+function safePhoto(value) {
+  const photo = String(value || "");
+  if (!/^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(photo)) return "";
+  if (photo.length > 40000) return "";
+  return photo;
+}
+
+async function ensurePhotoColumn() {
+  if (photoHeaderReady) return;
+  const header = await values(`${PEOPLE}!G1`);
+  if (header[0]?.[0] !== "photo") await writeValues(`${PEOPLE}!G1`, [["photo"]]);
+  photoHeaderReady = true;
+}
 function rowObject(headers, row) {
   const record = {};
   headers.forEach((header, index) => {
@@ -142,7 +159,8 @@ function rowObject(headers, row) {
 
 async function readPeople() {
   await ensureSheets();
-  const rows = await values(`${PEOPLE}!A2:F`);
+  await ensurePhotoColumn();
+  const rows = await values(`${PEOPLE}!A2:G`);
   return rows
     .map((row, index) => ({ ...rowObject(PEOPLE_HEADERS, row), row: index + 2 }))
     .filter((person) => person.id);
@@ -161,6 +179,7 @@ function publicPeople(people, marks) {
     name: person.name,
     goal: person.goal,
     startDate: person.startDate,
+    photo: safePhoto(person.photo),
     marks: marks.filter((mark) => mark.personId === person.id).map((mark) => mark.date),
   }));
 }
@@ -177,10 +196,18 @@ function boardFor(people, marks, token) {
       });
   }
   return {
-    me: me ? { id: me.id, name: me.name, goal: me.goal, startDate: me.startDate } : null,
+    me: me ? { id: me.id, name: me.name, goal: me.goal, startDate: me.startDate, photo: safePhoto(me.photo) } : null,
     people: publicPeople(people, marks),
     myMarks,
   };
+}
+
+function photoFrom(body, fallback = "") {
+  if (!Object.prototype.hasOwnProperty.call(body, "photo")) return fallback;
+  const photo = String(body.photo || "");
+  if (!photo) return "";
+  if (!safePhoto(photo)) throw fail(400, "Фото слишком большое или записано неверно.");
+  return photo;
 }
 
 function profileFrom(body) {
@@ -209,8 +236,9 @@ export async function join(body) {
     startDate: profile.startDate,
     token: crypto.randomBytes(24).toString("hex"),
     createdAt: new Date().toISOString(),
+    photo: photoFrom(body),
   };
-  await appendValues(`${PEOPLE}!A:F`, [[person.id, person.name, person.goal, person.startDate, person.token, person.createdAt]]);
+  await appendValues(`${PEOPLE}!A:G`, [[person.id, person.name, person.goal, person.startDate, person.token, person.createdAt, person.photo]]);
   const marks = await readMarks();
   return { token: person.token, ...boardFor([...people, { ...person, row: 0 }], marks, person.token) };
 }
@@ -224,7 +252,8 @@ export async function updateProfile(token, body) {
   me.name = profile.name;
   me.goal = profile.goal;
   me.startDate = profile.startDate;
-  await writeValues(`${PEOPLE}!A${me.row}:F${me.row}`, [[me.id, me.name, me.goal, me.startDate, me.token, me.createdAt]]);
+  me.photo = photoFrom(body, me.photo);
+  await writeValues(`${PEOPLE}!A${me.row}:G${me.row}`, [[me.id, me.name, me.goal, me.startDate, me.token, me.createdAt, me.photo]]);
   const marks = await readMarks();
   return boardFor(people, marks, token);
 }
