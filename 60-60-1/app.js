@@ -43,8 +43,12 @@ const state = {
     remainingMs: FULL_MS,
     running: false,
     endsAt: null,
+    alert: false,
   },
 };
+
+let timerAlarm = 0;
+let timerAudio = null;
 
 state.start = iso(today());
 
@@ -425,16 +429,21 @@ function renderTimer(summary) {
       ${resume ? '<button type="button" class="text-btn muted" data-action="reset-timer">Сбросить</button>' : ""}
     `;
   }
-  const hint =
-    !running && left <= 0 && !summary.checkedIn
-      ? '<p class="hint">Час на таймере прошёл — день можно отметить.</p>'
-      : "";
+  const finished = !running && left <= 0;
+  const hint = finished
+    ? `<p class="timer-done" role="status">Время вышло</p>${
+        summary.checkedIn ? "" : '<p class="hint">Час на таймере прошёл — день можно отметить.</p>'
+      }`
+    : "";
+  const sound = running
+    ? ""
+    : `<button type="button" class="text-btn muted" data-action="preview-sound">Проверить звук</button>`;
   return `
     <section class="timer" aria-label="Таймер на 60 минут">
       <p class="timer-label">Час на цель</p>
       <p class="clock" id="clock">${formatMs(left)}</p>
       <div class="track" aria-hidden="true"><div class="fill" id="timer-fill" style="transform: scaleX(${elapsedRatio(left)})"></div></div>
-      <div class="timer-actions">${controls}</div>
+      <div class="timer-actions">${controls}${sound}</div>
       ${hint}
     </section>
   `;
@@ -788,8 +797,19 @@ function render() {
       <main>${screen()}</main>
     </div>
     ${renderTabbar(view)}
+    ${renderTimeUp()}
   `;
   paintTimer();
+}
+
+function renderTimeUp() {
+  if (!state.timer.alert) return "";
+  return `
+    <div class="time-up" role="status">
+      <p>Время вышло</p>
+      <button type="button" class="text-btn" data-action="dismiss-time-up">Хорошо</button>
+    </div>
+  `;
 }
 
 function paintTimer(ms) {
@@ -800,14 +820,120 @@ function paintTimer(ms) {
   if (fill) fill.style.transform = `scaleX(${elapsedRatio(left)})`;
 }
 
+function clearTimerAlarm() {
+  window.clearTimeout(timerAlarm);
+  timerAlarm = 0;
+}
+
+function armTimerAlarm() {
+  clearTimerAlarm();
+  if (!state.timer.running || !state.timer.endsAt) return;
+  timerAlarm = window.setTimeout(tick, Math.max(0, state.timer.endsAt - Date.now()));
+}
+
+function allowTimerAlert() {
+  if (!("Notification" in window) || Notification.permission !== "default") return;
+  Notification.requestPermission().catch(() => {});
+}
+
+function primeTimerSound() {
+  const Ctx = window.AudioContext || window.webkitAudioContext;
+  if (!Ctx) return;
+  if (!timerAudio) timerAudio = new Ctx();
+  if (timerAudio.state === "suspended") timerAudio.resume();
+}
+
+function previewTimerSound() {
+  primeTimerSound();
+  if (!timerAudio) return;
+  if (timerAudio.state === "suspended") {
+    timerAudio.resume().then(playTimeUp);
+    return;
+  }
+  playTimeUp();
+}
+
+function playTimeUp() {
+  if (!timerAudio) return;
+  const now = timerAudio.currentTime;
+  const brass = (freq, at, duration, volume) => {
+    const osc = timerAudio.createOscillator();
+    const body = timerAudio.createOscillator();
+    const filter = timerAudio.createBiquadFilter();
+    const gain = timerAudio.createGain();
+    const start = now + at;
+    osc.type = "sawtooth";
+    body.type = "triangle";
+    osc.frequency.setValueAtTime(freq * 0.97, start);
+    osc.frequency.exponentialRampToValueAtTime(freq, start + 0.05);
+    body.frequency.setValueAtTime(freq, start);
+    filter.type = "lowpass";
+    filter.frequency.setValueAtTime(500, start);
+    filter.frequency.exponentialRampToValueAtTime(2400, start + 0.06);
+    filter.frequency.exponentialRampToValueAtTime(800, start + duration);
+    filter.Q.value = 2.5;
+    gain.gain.setValueAtTime(0.0001, start);
+    gain.gain.exponentialRampToValueAtTime(volume, start + 0.03);
+    gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
+    osc.connect(filter);
+    body.connect(filter);
+    filter.connect(gain);
+    gain.connect(timerAudio.destination);
+    osc.start(start);
+    body.start(start);
+    osc.stop(start + duration + 0.02);
+    body.stop(start + duration + 0.02);
+  };
+  [
+    [523.25, 0, 0.16, 0.07],
+    [659.25, 0.14, 0.16, 0.07],
+    [783.99, 0.28, 0.16, 0.08],
+    [1046.5, 0.42, 0.42, 0.08],
+    [523.25, 0.9, 0.85, 0.045],
+    [659.25, 0.9, 0.85, 0.04],
+    [783.99, 0.9, 0.85, 0.04],
+    [1046.5, 0.9, 0.95, 0.05],
+  ].forEach((note) => brass(...note));
+}
+
+function signalTimeUp() {
+  document.title = "Время вышло — 60/60/1";
+  playTimeUp();
+  if (navigator.vibrate) navigator.vibrate([220, 90, 220]);
+  if (!("Notification" in window) || Notification.permission !== "granted") return;
+  try {
+    const note = new Notification("Время вышло", {
+      body: "Час на цель прошёл.",
+      tag: "challenge-60601-timer",
+      renotify: true,
+      lang: "ru",
+    });
+    note.onclick = () => {
+      window.focus();
+      if (location.hash !== "#today") location.hash = "#today";
+      note.close();
+    };
+  } catch {
+    /* The page still shows the message. */
+  }
+}
+
+function finishTimer() {
+  if (!state.timer.running) return;
+  clearTimerAlarm();
+  state.timer.remainingMs = 0;
+  state.timer.running = false;
+  state.timer.endsAt = null;
+  state.timer.alert = true;
+  render();
+  signalTimeUp();
+}
+
 function tick() {
   if (!state.timer.running || !state.timer.endsAt) return;
   const left = state.timer.endsAt - Date.now();
   if (left <= 0) {
-    state.timer.remainingMs = 0;
-    state.timer.running = false;
-    state.timer.endsAt = null;
-    render();
+    finishTimer();
     return;
   }
   state.timer.remainingMs = left;
@@ -817,13 +943,19 @@ function tick() {
 function startTimer() {
   if (state.timer.running) return;
   if (state.timer.remainingMs <= 0) state.timer.remainingMs = FULL_MS;
+  state.timer.alert = false;
   state.timer.endsAt = Date.now() + state.timer.remainingMs;
   state.timer.running = true;
+  document.title = "60/60/1";
+  allowTimerAlert();
+  primeTimerSound();
+  armTimerAlarm();
   render();
 }
 
 function pauseTimer() {
   if (!state.timer.running || !state.timer.endsAt) return;
+  clearTimerAlarm();
   state.timer.remainingMs = Math.max(0, state.timer.endsAt - Date.now());
   state.timer.running = false;
   state.timer.endsAt = null;
@@ -831,9 +963,12 @@ function pauseTimer() {
 }
 
 function resetTimer() {
+  clearTimerAlarm();
   state.timer.running = false;
   state.timer.endsAt = null;
   state.timer.remainingMs = FULL_MS;
+  state.timer.alert = false;
+  document.title = "60/60/1";
 }
 
 function readNoteDraft() {
@@ -1069,8 +1204,13 @@ function onClick(event) {
   const action = el.dataset.action;
   if (action === "start-timer") startTimer();
   else if (action === "pause-timer") pauseTimer();
+  else if (action === "preview-sound") previewTimerSound();
   else if (action === "reset-timer") {
     resetTimer();
+    render();
+  } else if (action === "dismiss-time-up") {
+    state.timer.alert = false;
+    document.title = "60/60/1";
     render();
   } else if (action === "mark") markToday();
   else if (action === "save-note") saveNote();
@@ -1140,4 +1280,7 @@ root.addEventListener("change", (event) => {
   if (file) choosePhoto(file);
 });
 window.setInterval(tick, 200);
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") tick();
+});
 boot();
