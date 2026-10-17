@@ -918,6 +918,13 @@ function signalTimeUp() {
   }
 }
 
+function closeDayFromTimer() {
+  if (!joined() || state.busy) return;
+  if (getPhase() !== "active") return;
+  if (userSummary().checkedIn) return;
+  persistMark(readNoteDraft().trim());
+}
+
 function finishTimer() {
   if (!state.timer.running) return;
   clearTimerAlarm();
@@ -927,6 +934,7 @@ function finishTimer() {
   state.timer.alert = true;
   render();
   signalTimeUp();
+  closeDayFromTimer();
 }
 
 function tick() {
