@@ -1,16 +1,17 @@
 import crypto from "node:crypto";
 import { GoogleAuth } from "google-auth-library";
 import { fail } from "./http.js";
+import { REMIND_TEXT, TIME_UP_TEXT, sendTelegram } from "./telegram.js";
 
 const PEOPLE = "People";
 const MARKS = "Marks";
-const PEOPLE_HEADERS = ["id", "name", "goal", "startDate", "token", "createdAt", "photo"];
+const PEOPLE_HEADERS = ["id", "name", "goal", "startDate", "token", "createdAt", "photo", "telegramId"];
 const MARK_HEADERS = ["personId", "date", "note", "updatedAt"];
 const TOTAL_DAYS = 60;
 
 let authClient;
 let sheetsReady = false;
-let photoHeaderReady = false;
+let peopleColumnsReady = false;
 
 function credentials() {
   const sheetId = process.env.GOOGLE_SHEET_ID;
@@ -128,8 +129,8 @@ async function ensureSheets() {
   }
   const peopleHeader = await values(`${PEOPLE}!A1:F1`);
   if (peopleHeader[0]?.[0] !== "id") {
-    await writeValues(`${PEOPLE}!A1:G1`, [PEOPLE_HEADERS]);
-    photoHeaderReady = true;
+    await writeValues(`${PEOPLE}!A1:H1`, [PEOPLE_HEADERS]);
+    peopleColumnsReady = true;
   }
   const markHeader = await values(`${MARKS}!A1:D1`);
   if (markHeader[0]?.[0] !== "personId") await writeValues(`${MARKS}!A1:D1`, [MARK_HEADERS]);
@@ -143,11 +144,30 @@ function safePhoto(value) {
   return photo;
 }
 
-async function ensurePhotoColumn() {
-  if (photoHeaderReady) return;
-  const header = await values(`${PEOPLE}!G1`);
-  if (header[0]?.[0] !== "photo") await writeValues(`${PEOPLE}!G1`, [["photo"]]);
-  photoHeaderReady = true;
+async function ensurePeopleColumns() {
+  if (peopleColumnsReady) return;
+  const header = await values(`${PEOPLE}!A1:H1`);
+  const row = header[0] || [];
+  if (row[6] !== "photo") await writeValues(`${PEOPLE}!G1`, [["photo"]]);
+  if (row[7] !== "telegramId") await writeValues(`${PEOPLE}!H1`, [["telegramId"]]);
+  peopleColumnsReady = true;
+}
+
+function personRow(person) {
+  return [
+    person.id,
+    person.name,
+    person.goal,
+    person.startDate,
+    person.token,
+    person.createdAt,
+    person.photo,
+    person.telegramId || "",
+  ];
+}
+
+async function writePerson(person) {
+  await writeValues(`${PEOPLE}!A${person.row}:H${person.row}`, [personRow(person)]);
 }
 function rowObject(headers, row) {
   const record = {};
@@ -159,8 +179,8 @@ function rowObject(headers, row) {
 
 async function readPeople() {
   await ensureSheets();
-  await ensurePhotoColumn();
-  const rows = await values(`${PEOPLE}!A2:G`);
+  await ensurePeopleColumns();
+  const rows = await values(`${PEOPLE}!A2:H`);
   return rows
     .map((row, index) => ({ ...rowObject(PEOPLE_HEADERS, row), row: index + 2 }))
     .filter((person) => person.id);
@@ -196,7 +216,16 @@ function boardFor(people, marks, token) {
       });
   }
   return {
-    me: me ? { id: me.id, name: me.name, goal: me.goal, startDate: me.startDate, photo: safePhoto(me.photo) } : null,
+    me: me
+      ? {
+          id: me.id,
+          name: me.name,
+          goal: me.goal,
+          startDate: me.startDate,
+          photo: safePhoto(me.photo),
+          telegram: Boolean(me.telegramId),
+        }
+      : null,
     people: publicPeople(people, marks),
     myMarks,
   };
@@ -229,6 +258,10 @@ export async function getBoard(token) {
 export async function join(body) {
   const profile = profileFrom(body);
   const people = await readPeople();
+  const telegramId = /^\d+$/.test(String(body.telegramId || "")) ? String(body.telegramId) : "";
+  if (telegramId && people.some((person) => person.telegramId === telegramId)) {
+    throw fail(409, "Этот Telegram уже в челлендже.");
+  }
   const person = {
     id: crypto.randomUUID(),
     name: profile.name,
@@ -237,8 +270,9 @@ export async function join(body) {
     token: crypto.randomBytes(24).toString("hex"),
     createdAt: new Date().toISOString(),
     photo: photoFrom(body),
+    telegramId,
   };
-  await appendValues(`${PEOPLE}!A:G`, [[person.id, person.name, person.goal, person.startDate, person.token, person.createdAt, person.photo]]);
+  await appendValues(`${PEOPLE}!A:H`, [personRow(person)]);
   const marks = await readMarks();
   return { token: person.token, ...boardFor([...people, { ...person, row: 0 }], marks, person.token) };
 }
@@ -253,9 +287,55 @@ export async function updateProfile(token, body) {
   me.goal = profile.goal;
   me.startDate = profile.startDate;
   me.photo = photoFrom(body, me.photo);
-  await writeValues(`${PEOPLE}!A${me.row}:G${me.row}`, [[me.id, me.name, me.goal, me.startDate, me.token, me.createdAt, me.photo]]);
+  await writePerson(me);
   const marks = await readMarks();
   return boardFor(people, marks, token);
+}
+
+export async function telegramSession(token, telegramId) {
+  const people = await readPeople();
+  const marks = await readMarks();
+  const byTelegram = people.find((person) => person.telegramId === telegramId);
+  if (byTelegram) {
+    return { token: byTelegram.token, ...boardFor(people, marks, byTelegram.token) };
+  }
+  const me = token ? people.find((person) => person.token === token) : null;
+  if (me) {
+    me.telegramId = telegramId;
+    await writePerson(me);
+    return { token: me.token, ...boardFor(people, marks, me.token) };
+  }
+  return { token: "", ...boardFor(people, marks, "") };
+}
+
+export async function notifyTimeUp(token) {
+  if (!token) throw fail(401, "Сначала нужно начать челлендж.");
+  const people = await readPeople();
+  const me = people.find((person) => person.token === token);
+  if (!me) throw fail(401, "Код не подошёл.");
+  if (!me.telegramId) return { sent: false };
+  await sendTelegram(me.telegramId, TIME_UP_TEXT);
+  return { sent: true };
+}
+
+export async function remindUnmarked() {
+  const people = await readPeople();
+  const marks = await readMarks();
+  const today = todayISO();
+  let sent = 0;
+  for (const person of people) {
+    if (!person.telegramId || !isISO(person.startDate)) continue;
+    const end = addDays(person.startDate, TOTAL_DAYS - 1);
+    if (today < person.startDate || today > end) continue;
+    if (marks.some((mark) => mark.personId === person.id && mark.date === today)) continue;
+    try {
+      await sendTelegram(person.telegramId, REMIND_TEXT);
+      sent += 1;
+    } catch (error) {
+      console.error("remind", person.id, error.message);
+    }
+  }
+  return { sent };
 }
 
 function assertToday(person, date) {

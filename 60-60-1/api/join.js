@@ -1,4 +1,5 @@
 import { join } from "../server/sheets.js";
+import { parseInitData } from "../server/telegram.js";
 import { handle, readJson, send } from "../server/http.js";
 
 export default async function handler(req, res) {
@@ -8,6 +9,8 @@ export default async function handler(req, res) {
       return;
     }
     const body = await readJson(req);
+    if (body.initData) body.telegramId = parseInitData(body.initData).id;
+    else delete body.telegramId;
     const result = await join(body);
     send(res, 201, result);
   });

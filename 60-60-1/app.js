@@ -39,6 +39,7 @@ const state = {
   selectedOffset: null,
   notice: "",
   noticeTimer: 0,
+  telegram: false,
   timer: {
     remainingMs: FULL_MS,
     running: false,
@@ -344,11 +345,33 @@ function savedDesign() {
   }
 }
 
+function telegramWebApp() {
+  return window.Telegram && window.Telegram.WebApp;
+}
+
+function telegramInitData() {
+  const app = telegramWebApp();
+  return app && app.initData ? app.initData : "";
+}
+
+function bootTelegram() {
+  const app = telegramWebApp();
+  if (!app || !app.initData) return;
+  document.documentElement.classList.add("in-telegram");
+  app.ready();
+  app.expand();
+}
+
 function applyDesign(name) {
   const design = Object.prototype.hasOwnProperty.call(THEMES, name) ? name : "paper";
   document.documentElement.dataset.design = design;
   const meta = document.querySelector('meta[name="theme-color"]');
   if (meta) meta.content = THEMES[design].color;
+  const app = telegramWebApp();
+  if (app && app.initData) {
+    app.setHeaderColor(THEMES[design].color);
+    app.setBackgroundColor(THEMES[design].color);
+  }
   document.querySelectorAll(".design-choice").forEach((button) => {
     button.setAttribute("aria-pressed", button.dataset.theme === design ? "true" : "false");
   });
@@ -763,7 +786,13 @@ function renderSetup() {
             </label>
             <button type="button" class="text-btn" data-action="use-code">Открыть по коду</button>`
       }
-      <p class="fine">Отметки хранятся в общей таблице. Код устройства открывает того же человека на другом телефоне.</p>
+      <p class="fine">${
+        telegramInitData()
+          ? state.telegram
+            ? "Бот напишет, когда час закончится, и напомнит вечером, если день ещё открыт."
+            : "Открой челлендж из бота в Telegram, чтобы получать сообщения."
+          : "Отметки хранятся в общей таблице. Код устройства открывает того же человека на другом телефоне."
+      }</p>
     </div>
   `;
 }
@@ -925,6 +954,11 @@ function closeDayFromTimer() {
   persistMark(readNoteDraft().trim());
 }
 
+function notifyTelegramTimeUp() {
+  if (!joined()) return;
+  api("/api/telegram/notify", { method: "POST", body: { event: "timeup" } }).catch(() => {});
+}
+
 function finishTimer() {
   if (!state.timer.running) return;
   clearTimerAlarm();
@@ -935,6 +969,7 @@ function finishTimer() {
   render();
   signalTimeUp();
   closeDayFromTimer();
+  notifyTelegramTimeUp();
 }
 
 function tick() {
@@ -999,7 +1034,7 @@ async function api(path, options = {}) {
     body: options.body ? JSON.stringify(options.body) : undefined,
   });
   const data = await response.json().catch(() => ({}));
-  if (response.status === 401) localStorage.removeItem(TOKEN_KEY);
+  if (response.status === 401 && !path.startsWith("/api/telegram/")) localStorage.removeItem(TOKEN_KEY);
   if (!response.ok) {
     const error = new Error(data.error || "Не получилось сохранить данные.");
     error.status = response.status;
@@ -1021,6 +1056,7 @@ function applyBoard(data) {
       state.marks[date] = { note: note || "" };
     });
   }
+  state.telegram = Boolean(data.me && data.me.telegram);
   state.status = "ready";
   state.error = "";
 }
@@ -1036,12 +1072,28 @@ async function loadBoard(options = {}) {
     render();
   }
   try {
-    const data = await api("/api/board");
+    const initData = telegramInitData();
+    const data = initData
+      ? await api("/api/telegram/session", { method: "POST", body: { initData } })
+      : await api("/api/board");
     if (request !== boardRequest) return;
+    if (data.token) localStorage.setItem(TOKEN_KEY, data.token);
     applyBoard(data);
   } catch (error) {
     if (request !== boardRequest) return;
-    if (error.status === 401) {
+    let failed = error;
+    if (telegramInitData() && error.status !== 401) {
+      try {
+        applyBoard(await api("/api/board"));
+        if (request !== boardRequest) return;
+        failed = null;
+      } catch (again) {
+        failed = again;
+      }
+    }
+    if (!failed) {
+      /* board already applied */
+    } else if (failed.status === 401) {
       try {
         const data = await api("/api/board", { token: "" });
         if (request !== boardRequest) return;
@@ -1052,9 +1104,9 @@ async function loadBoard(options = {}) {
           state.error = again.message;
         }
       }
-    } else if (!silent) {
+    } else if (!silent && state.status !== "ready") {
       state.status = "error";
-      state.error = error.message;
+      state.error = failed.message;
     }
   }
   if (request !== boardRequest) return;
@@ -1156,6 +1208,8 @@ async function saveSetup(event) {
   render();
   try {
     const body = { name, goal, startDate: start, photo: safePhoto(state.photo) };
+    const initData = telegramInitData();
+    if (initData) body.initData = initData;
     const data = wasJoined
       ? await api("/api/profile", { method: "PATCH", body })
       : await api("/api/join", { method: "POST", body });
@@ -1263,6 +1317,7 @@ function onInput(event) {
 }
 
 function boot() {
+  bootTelegram();
   applyDesign(savedDesign());
   const id = location.hash.replace("#", "");
   if (!VIEWS.includes(id)) history.replaceState(null, "", "#today");

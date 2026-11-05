@@ -3,6 +3,9 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
+  "scripts": {
+    "telegram:setup": "node scripts/telegram-setup.js"
+  },
   "dependencies": {
     "google-auth-library": "^9.15.1"
   }
