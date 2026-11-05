@@ -779,7 +779,9 @@ function renderSetup() {
       </form>
       ${
         joined()
-          ? `<button type="button" class="text-btn" data-action="copy-code">Скопировать код устройства</button>`
+          ? `<button type="button" class="text-btn" data-action="copy-code">Скопировать код устройства</button>
+        <button type="button" class="text-btn" data-action="rotate-code">Сменить код устройства</button>
+        <button type="button" class="text-btn muted" data-action="leave">Выйти с этого телефона</button>`
           : `<label class="field">
               <span>Код устройства, если уже начинал</span>
               <input id="field-code" type="text" autocomplete="off" />
@@ -1260,6 +1262,35 @@ async function copyCode() {
   }
 }
 
+async function rotateCode() {
+  if (state.busy || !joined()) return;
+  state.busy = true;
+  render();
+  try {
+    const data = await api("/api/token", { method: "POST" });
+    if (data.token) localStorage.setItem(TOKEN_KEY, data.token);
+    applyBoard(data);
+    state.notice = "Старый код больше не действует.";
+  } catch (error) {
+    state.notice = error.message;
+  } finally {
+    state.busy = false;
+    render();
+  }
+}
+
+function leaveDevice() {
+  localStorage.removeItem(TOKEN_KEY);
+  state.meId = null;
+  state.marks = {};
+  state.telegram = false;
+  state.notice = "";
+  state.noteDraft = null;
+  state.editingNote = false;
+  history.replaceState(null, "", "#today");
+  loadBoard();
+}
+
 function onClick(event) {
   const el = event.target.closest("[data-action]");
   if (!el || !root.contains(el)) return;
@@ -1291,6 +1322,8 @@ function onClick(event) {
   } else if (action === "retry") loadBoard();
   else if (action === "use-code") useCode();
   else if (action === "copy-code") copyCode();
+  else if (action === "rotate-code") rotateCode();
+  else if (action === "leave") leaveDevice();
   else if (action === "set-design") setDesign(el.dataset.theme);
   else if (action === "pick-photo") document.getElementById("field-photo")?.click();
   else if (action === "clear-photo") {

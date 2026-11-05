@@ -292,6 +292,17 @@ export async function updateProfile(token, body) {
   return boardFor(people, marks, token);
 }
 
+export async function rotateToken(token) {
+  if (!token) throw fail(401, "Сначала нужно начать челлендж.");
+  const people = await readPeople();
+  const me = people.find((person) => person.token === token);
+  if (!me) throw fail(401, "Код не подошёл.");
+  me.token = crypto.randomBytes(24).toString("hex");
+  await writePerson(me);
+  const marks = await readMarks();
+  return { token: me.token, ...boardFor(people, marks, me.token) };
+}
+
 export async function telegramSession(token, telegramId) {
   const people = await readPeople();
   const marks = await readMarks();
